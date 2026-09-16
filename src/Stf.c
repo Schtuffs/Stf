@@ -8,8 +8,7 @@
 
 #include <GLFW/glfw3.h>
 
-#include "Types/ColourArrayList.h"
-#include "Types/TriangleArrayList.h"
+#include "Types/ArrayList.h"
 #include "Utils/Utils.h"
 
 #define MAX_Z 500ull
@@ -20,13 +19,15 @@ typedef struct GlobalData {
 } GlobalData;
 
 typedef struct RenderData {
-    TriangleArrayList triangles;
-    ColourArrayList   colours;
+    ArrayList colours;
+    ArrayList textures;
+    ArrayList triangles;
 } RenderData;
 
 static GLuint     shader     = 0;
 static GlobalData stfData    = {0};
 static RenderData renderData = {0};
+static Texture    whiteTexture;
 
 // ----- Helpers -----
 
@@ -206,29 +207,53 @@ bool StfWindowInit(i32 width, i32 height, const char* title)
         return false;
     }
 
+    renderData.textures = ArrayListInit(0);
+    if (!ArrayListIsValid(renderData.textures)) {
+        perror("ERROR: Failure to initialize textures.");
+        StfWindowClose();
+        return false;
+    }
+
     // Buffer inits
-    renderData.triangles = TriangleArrayListInit(0);
-    if (!TriangleArrayListIsValid(renderData.triangles)) {
+    renderData.triangles = ArrayListInit(0);
+    if (!ArrayListIsValid(renderData.triangles)) {
         perror("ERROR: Failure to initialize triangles.");
         StfWindowClose();
         return false;
     }
 
     // Colours for triangles
-    renderData.colours = ColourArrayListInit(0);
-    if (!ColourArrayListIsValid(renderData.colours)) {
+    renderData.colours = ArrayListInit(0);
+    if (!ArrayListIsValid(renderData.colours)) {
         perror("ERROR: Failure to initialize colours.");
         StfWindowClose();
         return false;
     }
+
+    // Default white texture
+    glGenTextures(1, &whiteTexture.id);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture.id);
+    u8 pixels[] = {255, 255, 255, 255};
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    whiteTexture.width  = 1;
+    whiteTexture.height = 1;
 
     return true;
 }
 
 bool StfWindowClose()
 {
-    ColourArrayListDestroy(&renderData.colours);
-    TriangleArrayListDestroy(&renderData.triangles);
+    if (ArrayListIsValid(renderData.textures)) {
+        ArrayListDestroy(&renderData.textures);
+    }
+    if (ArrayListIsValid(renderData.colours)) {
+        ArrayListDestroy(&renderData.colours);
+    }
+    if (ArrayListIsValid(renderData.triangles)) {
+        ArrayListDestroy(&renderData.triangles);
+    }
 
     if (shader != 0) {
         glDeleteProgram(shader);
@@ -259,16 +284,19 @@ i32 StfWindowHeight() { return stfData.height; }
 void StfBeginRender()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    TriangleArrayListClear(&renderData.triangles);
-    ColourArrayListClear(&renderData.colours);
+    ArrayListClear(&renderData.colours);
+    ArrayListClear(&renderData.textures);
+    ArrayListClear(&renderData.triangles);
 }
 
 void StfEndRender()
 {
     // Render them renderData.triangles
     for (u64 i = 0; i < renderData.triangles.count; i++) {
-        Triangle triangle = renderData.triangles.data[i];
-        Colour   colour   = renderData.colours.data[i];
+        Triangle triangle = *(Triangle*)renderData.triangles.data[i];
+        Colour   colour   = *(Colour*)renderData.colours.data[i];
+        Texture  tex      = *(Texture*)renderData.textures.data[i];
+
         // clang-format off
         float    vertices[] = {
             triangle.p1.x, triangle.p1.y, triangle.p1.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 1.f, 1.f,
@@ -292,6 +320,7 @@ void StfEndRender()
                               (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
 
+        glBindTexture(GL_TEXTURE_2D, tex.id);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float),
                               (void*)(7 * sizeof(float)));
         glEnableVertexAttribArray(2);
@@ -324,13 +353,22 @@ void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
     double ry3 = Map(p3.y, 0., StfWindowHeight(), -1., 1.);
     // clang-format on
 
-    Triangle t;
-    t.p1 = (Vec3){rx1, ry1, 0.};
-    t.p2 = (Vec3){rx2, ry2, 0.};
-    t.p3 = (Vec3){rx3, ry3, 0.};
+    Triangle* t = malloc(sizeof(Triangle));
+    t->p1       = (Vec3){rx1, ry1, 0.};
+    t->p2       = (Vec3){rx2, ry2, 0.};
+    t->p3       = (Vec3){rx3, ry3, 0.};
 
-    TriangleArrayListAdd(&renderData.triangles, t);
-    ColourArrayListAdd(&renderData.colours, colour);
+    ArrayListAdd(&renderData.triangles, t);
+
+    Colour* c = malloc(sizeof(Colour));
+    *c        = colour;
+
+    ArrayListAdd(&renderData.colours, c);
+
+    Texture* tex1 = malloc(sizeof(Texture));
+    *tex1         = whiteTexture;
+
+    ArrayListAdd(&renderData.textures, tex1);
 }
 
 void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
@@ -341,21 +379,36 @@ void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
     double wi = Map(width,  0., StfWindowWidth(),   0., 2.);
     double hi = Map(height, 0., StfWindowHeight(),  0., 2.);
 
-    Triangle t1, t2;
-    t1.p1 = (Vec3){rx,      ry,      -1.f};
-    t1.p2 = (Vec3){rx + wi, ry,      -1.f};
-    t1.p3 = (Vec3){rx + wi, ry + hi, -1.f};
+    Triangle *t1 = malloc(sizeof(Triangle));
+    Triangle *t2 = malloc(sizeof(Triangle));
 
-    t2.p1 = (Vec3){rx,      ry,      -1.f};
-    t2.p3 = (Vec3){rx + wi, ry + hi, -1.f};
-    t2.p2 = (Vec3){rx,      ry + hi, -1.f};
+    t1->p1 = (Vec3){rx,      ry,      -1.f};
+    t1->p2 = (Vec3){rx + wi, ry,      -1.f};
+    t1->p3 = (Vec3){rx + wi, ry + hi, -1.f};
+
+    t2->p1 = (Vec3){rx,      ry,      -1.f};
+    t2->p3 = (Vec3){rx + wi, ry + hi, -1.f};
+    t2->p2 = (Vec3){rx,      ry + hi, -1.f};
     // clang-format on
 
-    TriangleArrayListAdd(&renderData.triangles, t1);
-    TriangleArrayListAdd(&renderData.triangles, t2);
+    ArrayListAdd(&renderData.triangles, t1);
+    ArrayListAdd(&renderData.triangles, t2);
 
-    ColourArrayListAdd(&renderData.colours, colour);
-    ColourArrayListAdd(&renderData.colours, colour);
+    Colour* c1 = malloc(sizeof(Colour));
+    *c1        = colour;
+    Colour* c2 = malloc(sizeof(Colour));
+    *c2        = colour;
+
+    ArrayListAdd(&renderData.colours, c1);
+    ArrayListAdd(&renderData.colours, c2);
+
+    Texture* tex1 = malloc(sizeof(Texture));
+    *tex1         = whiteTexture;
+    Texture* tex2 = malloc(sizeof(Texture));
+    *tex2         = whiteTexture;
+
+    ArrayListAdd(&renderData.textures, tex1);
+    ArrayListAdd(&renderData.textures, tex2);
 }
 
 void StfRenderTexture(Texture texture, i64 x, i64 y, Colour tint)
@@ -366,19 +419,34 @@ void StfRenderTexture(Texture texture, i64 x, i64 y, Colour tint)
     double wi = Map(texture.width,  0., StfWindowWidth(),   0., 2.);
     double hi = Map(texture.height, 0., StfWindowHeight(),  0., 2.);
 
-    Triangle t1, t2;
-    t1.p1 = (Vec3){rx,      ry,      -1.f};
-    t1.p2 = (Vec3){rx + wi, ry,      -1.f};
-    t1.p3 = (Vec3){rx + wi, ry + hi, -1.f};
+    Triangle *t1 = malloc(sizeof(Triangle));
+    Triangle *t2 = malloc(sizeof(Triangle));
 
-    t2.p1 = (Vec3){rx,      ry,      -1.f};
-    t2.p3 = (Vec3){rx + wi, ry + hi, -1.f};
-    t2.p2 = (Vec3){rx,      ry + hi, -1.f};
+    t1->p1 = (Vec3){rx,      ry,      0.f};
+    t1->p2 = (Vec3){rx + wi, ry,      0.f};
+    t1->p3 = (Vec3){rx + wi, ry + hi, 0.f};
+
+    t2->p1 = (Vec3){rx,      ry,      0.f};
+    t2->p3 = (Vec3){rx + wi, ry + hi, 0.f};
+    t2->p2 = (Vec3){rx,      ry + hi, 0.f};
     // clang-format on
 
-    TriangleArrayListAdd(&renderData.triangles, t1);
-    TriangleArrayListAdd(&renderData.triangles, t2);
+    ArrayListAdd(&renderData.triangles, t1);
+    ArrayListAdd(&renderData.triangles, t2);
 
-    ColourArrayListAdd(&renderData.colours, tint);
-    ColourArrayListAdd(&renderData.colours, tint);
+    Colour* c1 = malloc(sizeof(Colour));
+    *c1        = tint;
+    Colour* c2 = malloc(sizeof(Colour));
+    *c2        = tint;
+
+    ArrayListAdd(&renderData.colours, c1);
+    ArrayListAdd(&renderData.colours, c2);
+
+    Texture* tex1 = malloc(sizeof(Texture));
+    *tex1         = texture;
+    Texture* tex2 = malloc(sizeof(Texture));
+    *tex2         = texture;
+
+    ArrayListAdd(&renderData.textures, tex1);
+    ArrayListAdd(&renderData.textures, tex2);
 }

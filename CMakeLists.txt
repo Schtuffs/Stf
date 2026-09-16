@@ -12,8 +12,7 @@ add_library(${PROJECT_NAME} STATIC
     ${SRC}/stb_image.c
     ${SRC}/Stf.c
     ${SRC}/StfLoad.c
-    ${TYPES}/ColourArrayList.c
-    ${TYPES}/TriangleArrayList.c
+    ${TYPES}/ArrayList.c
     ${UTILS}/Utils.c
 )
 

@@ -1,4 +1,4 @@
-#include "Types/TriangleArrayList.h"
+#include "Types/ArrayList.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,31 +11,33 @@ constexpr double LIST_SCALE              = 1.5;
 #define LIST_SCALE 1.5
 #endif
 
-TriangleArrayList TriangleArrayListInit(u64 size)
+ArrayList ArrayListInit(u64 size)
 {
-    TriangleArrayList list;
+    ArrayList list;
     if (size < DEFAULT_ARRAY_LIST_SIZE) {
         size = DEFAULT_ARRAY_LIST_SIZE;
     }
 
     list.size  = size;
     list.count = 0;
-    list.data  = malloc(size * sizeof(Triangle));
+    list.data  = malloc(size * sizeof(*(list.data)));
     if (list.data == NULL) {
-        TriangleArrayList ret = {0};
+        ArrayList ret = {0};
         return ret;
     }
 
     return list;
 }
 
-bool TriangleArrayListIsValid(TriangleArrayList list) { return (list.data != NULL); }
+bool ArrayListIsValid(ArrayList list) { return (list.data != NULL); }
 
-void TriangleArrayListDestroy(TriangleArrayList* list)
+void ArrayListDestroy(ArrayList* list)
 {
     if (list == NULL) {
         return;
     }
+
+    ArrayListClear(list);
 
     if (list->data != NULL) {
         free(list->data);
@@ -46,16 +48,16 @@ void TriangleArrayListDestroy(TriangleArrayList* list)
 
 //
 
-static bool CheckList(TriangleArrayList* list)
+static bool CheckList(ArrayList* list)
 {
     // Has space already
-    if (list->count < list->size) {
+    if (list->count <= list->size) {
         return true;
     }
 
     // Add space
-    u64       newSize  = list->size * LIST_SCALE;
-    Triangle* newSpace = realloc(list->data, newSize * sizeof(Triangle));
+    u64    newSize  = list->size * LIST_SCALE;
+    void** newSpace = realloc(list->data, newSize * sizeof(*(list->data)));
     if (!newSpace) {
         return false;
     }
@@ -64,14 +66,23 @@ static bool CheckList(TriangleArrayList* list)
     return true;
 }
 
-void TriangleArrayListClear(TriangleArrayList* list) { list->count = 0; }
+void ArrayListClear(ArrayList* list)
+{
+    for (u64 i = 0; i < list->count; i++) {
+        if (list->data[i]) {
+            free(list->data[i]);
+        }
+    }
 
-bool TriangleArrayListAdd(TriangleArrayList* list, Triangle triangle)
+    list->count = 0;
+}
+
+bool ArrayListAdd(ArrayList* list, void* item)
 {
     if (!CheckList(list)) {
         return false;
     }
 
-    list->data[list->count++] = triangle;
+    list->data[list->count++] = item;
     return true;
 }
