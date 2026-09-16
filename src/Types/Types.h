@@ -33,6 +33,18 @@ constexpr Colour MAGENTA = {255,   0, 255, 255};
 #endif
 // clang-format on
 
+typedef struct Image {
+    void* data;
+    u64   width;
+    u64   height;
+} Image;
+
+typedef struct Texture {
+    u32 id;
+    u64 width;
+    u64 height;
+} Texture;
+
 typedef struct Vec2 {
     float x, y;
 } Vec2;

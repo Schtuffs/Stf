@@ -12,29 +12,34 @@
 #include "Types/TriangleArrayList.h"
 #include "Utils/Utils.h"
 
-typedef struct WindowData {
-    GLFWwindow* window;
-    u64         width, height;
-} WindowData;
+#define MAX_Z 500ull
 
-static GLuint            shader    = 0;
-static WindowData        window    = {0};
-static TriangleArrayList triangles = {0};
-static ColourArrayList   colours   = {0};
+typedef struct GlobalData {
+    GLFWwindow* window;
+    i32         width, height;
+} GlobalData;
+
+typedef struct RenderData {
+    TriangleArrayList triangles;
+    ColourArrayList   colours;
+} RenderData;
+
+static GLuint     shader     = 0;
+static GlobalData stfData    = {0};
+static RenderData renderData = {0};
 
 // ----- Helpers -----
 
 void FramebufferCallback(GLFWwindow* w, int width, int height)
 {
     (void)w;
-    window.width  = width;
-    window.height = height;
+    stfData.width  = width;
+    stfData.height = height;
     glViewport(0, 0, width, height);
 }
 
 void KeyCallback(GLFWwindow* w, int key, int scancode, int action, int mods)
 {
-    (void)w;
     (void)scancode;
     (void)action;
     (void)mods;
@@ -153,30 +158,33 @@ GLuint CreateShader(const char* vertexFile, const char* fragmentFile)
 
 // ----- Creation / Destruction
 
-bool StfWindowInit(u64 width, u64 height, const char* title)
+bool StfWindowInit(i32 width, i32 height, const char* title)
 {
     // GLFW init
-    if (!glfwInit()) {
+    if (glfwInit() == GLFW_FALSE) {
         perror("ERROR: Failed to init glfw.");
         return false;
     }
 
+    // Versioning
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    
+
     // Window init
-    window.width  = width;
-    window.height = height;
-    window.window = glfwCreateWindow(window.width, window.height, title, NULL, NULL);
-    if (!window.window) {
-        perror("ERROR: Failure to init window.");
+    stfData.width  = width;
+    stfData.height = height;
+    stfData.window = glfwCreateWindow(stfData.width, stfData.height, title, NULL, NULL);
+    if (!stfData.window) {
+        perror("ERROR: Failure to init stfData.");
         glfwTerminate();
         return false;
     }
-    glfwMakeContextCurrent(window.window);
-    glfwSetFramebufferSizeCallback(window.window, FramebufferCallback);
-    glfwSetKeyCallback(window.window, KeyCallback);
+
+    // Setup window settings
+    glfwMakeContextCurrent(stfData.window);
+    glfwSetFramebufferSizeCallback(stfData.window, FramebufferCallback);
+    glfwSetKeyCallback(stfData.window, KeyCallback);
     glfwSwapInterval(0);
 
     // Glad init
@@ -185,6 +193,10 @@ bool StfWindowInit(u64 width, u64 height, const char* title)
         StfWindowClose();
         return false;
     }
+
+    // OpenGL inits
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
 
     // Shader init
     shader = CreateShader("../Stf/lib/default.vert", "../Stf/lib/default.frag");
@@ -195,15 +207,16 @@ bool StfWindowInit(u64 width, u64 height, const char* title)
     }
 
     // Buffer inits
-    triangles = TriangleArrayListInit(0);
-    if (!TriangleArrayListIsValid(triangles)) {
+    renderData.triangles = TriangleArrayListInit(0);
+    if (!TriangleArrayListIsValid(renderData.triangles)) {
         perror("ERROR: Failure to initialize triangles.");
         StfWindowClose();
         return false;
     }
 
-    colours = ColourArrayListInit(0);
-    if (!ColourArrayListIsValid(colours)) {
+    // Colours for triangles
+    renderData.colours = ColourArrayListInit(0);
+    if (!ColourArrayListIsValid(renderData.colours)) {
         perror("ERROR: Failure to initialize colours.");
         StfWindowClose();
         return false;
@@ -214,52 +227,53 @@ bool StfWindowInit(u64 width, u64 height, const char* title)
 
 bool StfWindowClose()
 {
-    TriangleArrayListDestroy(&triangles);
+    ColourArrayListDestroy(&renderData.colours);
+    TriangleArrayListDestroy(&renderData.triangles);
 
     if (shader != 0) {
         glDeleteProgram(shader);
     }
+    shader = 0;
 
-    glfwDestroyWindow(window.window);
-    window.window = NULL;
+    if (stfData.window) {
+        glfwDestroyWindow(stfData.window);
+    }
+    stfData.window = NULL;
 
     glfwTerminate();
     return true;
 }
 
-void StfBackground(Colour c)
-{
-    glClearColor(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f);
-}
+void StfBackground(Colour c) { glClearColor(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f); }
 
 // ----- Read -----
 
-bool StfWindowShouldClose() { return glfwWindowShouldClose(window.window); }
+bool StfWindowShouldClose() { return glfwWindowShouldClose(stfData.window); }
 
-u64 StfWindowWidth() { return window.width; }
+i32 StfWindowWidth() { return stfData.width; }
 
-u64 StfWindowHeight() { return window.height; }
+i32 StfWindowHeight() { return stfData.height; }
 
 // ----- Update -----
 
 void StfBeginRender()
 {
-    glClear(GL_COLOR_BUFFER_BIT);
-    TriangleArrayListClear(&triangles);
-    ColourArrayListClear(&colours);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    TriangleArrayListClear(&renderData.triangles);
+    ColourArrayListClear(&renderData.colours);
 }
 
 void StfEndRender()
 {
-    // Render them triangles
-    for (u64 i = 0; i < triangles.count; i++) {
-        Triangle triangle = triangles.data[i];
-        Colour   colour   = colours.data[i];
+    // Render them renderData.triangles
+    for (u64 i = 0; i < renderData.triangles.count; i++) {
+        Triangle triangle = renderData.triangles.data[i];
+        Colour   colour   = renderData.colours.data[i];
         // clang-format off
         float    vertices[] = {
-            triangle.p1.x, triangle.p1.y, triangle.p1.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f,
-            triangle.p2.x, triangle.p2.y, triangle.p2.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f,
-            triangle.p3.x, triangle.p3.y, triangle.p3.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f,
+            triangle.p1.x, triangle.p1.y, triangle.p1.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 1.f, 1.f,
+            triangle.p2.x, triangle.p2.y, triangle.p2.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 1.f, 0.f,
+            triangle.p3.x, triangle.p3.y, triangle.p3.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 0.f, 0.f,
         };
         // clang-format on
 
@@ -271,11 +285,16 @@ void StfEndRender()
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(0));
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 7 * sizeof(float),
-                              (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(0));
         glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 9 * sizeof(float),
+                              (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
+
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float),
+                              (void*)(7 * sizeof(float)));
+        glEnableVertexAttribArray(2);
 
         glUseProgram(shader);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -287,7 +306,7 @@ void StfEndRender()
     }
 
     // End of pipeline
-    glfwSwapBuffers(window.window);
+    glfwSwapBuffers(stfData.window);
     glfwPollEvents();
 }
 
@@ -303,15 +322,15 @@ void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
     double ry2 = Map(p2.y, 0., StfWindowHeight(), -1., 1.);
     double rx3 = Map(p3.x, 0., StfWindowWidth(),  -1., 1.);
     double ry3 = Map(p3.y, 0., StfWindowHeight(), -1., 1.);
-    
-    Triangle t;
-    t.p1 = (Vec3){rx1, ry1, 0.f};
-    t.p2 = (Vec3){rx2, ry2, 0.f};
-    t.p3 = (Vec3){rx3, ry3, 0.f};
     // clang-format on
 
-    TriangleArrayListAdd(&triangles, t);
-    ColourArrayListAdd(&colours, colour);
+    Triangle t;
+    t.p1 = (Vec3){rx1, ry1, 0.};
+    t.p2 = (Vec3){rx2, ry2, 0.};
+    t.p3 = (Vec3){rx3, ry3, 0.};
+
+    TriangleArrayListAdd(&renderData.triangles, t);
+    ColourArrayListAdd(&renderData.colours, colour);
 }
 
 void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
@@ -323,18 +342,43 @@ void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
     double hi = Map(height, 0., StfWindowHeight(),  0., 2.);
 
     Triangle t1, t2;
-    t1.p1 = (Vec3){rx,      ry,      0.f};
-    t1.p2 = (Vec3){rx + wi, ry,      0.f};
-    t1.p3 = (Vec3){rx + wi, ry + hi, 0.f};
+    t1.p1 = (Vec3){rx,      ry,      -1.f};
+    t1.p2 = (Vec3){rx + wi, ry,      -1.f};
+    t1.p3 = (Vec3){rx + wi, ry + hi, -1.f};
 
-    t2.p1 = (Vec3){rx,      ry,      0.f};
-    t2.p3 = (Vec3){rx + wi, ry + hi, 0.f};
-    t2.p2 = (Vec3){rx,      ry + hi, 0.f};
+    t2.p1 = (Vec3){rx,      ry,      -1.f};
+    t2.p3 = (Vec3){rx + wi, ry + hi, -1.f};
+    t2.p2 = (Vec3){rx,      ry + hi, -1.f};
     // clang-format on
 
-    TriangleArrayListAdd(&triangles, t1);
-    TriangleArrayListAdd(&triangles, t2);
+    TriangleArrayListAdd(&renderData.triangles, t1);
+    TriangleArrayListAdd(&renderData.triangles, t2);
 
-    ColourArrayListAdd(&colours, colour);
-    ColourArrayListAdd(&colours, colour);
+    ColourArrayListAdd(&renderData.colours, colour);
+    ColourArrayListAdd(&renderData.colours, colour);
+}
+
+void StfRenderTexture(Texture texture, i64 x, i64 y, Colour tint)
+{
+    // clang-format off
+    double rx = Map(x,              0., StfWindowWidth(),  -1., 1.);
+    double ry = Map(y,              0., StfWindowHeight(), -1., 1.);
+    double wi = Map(texture.width,  0., StfWindowWidth(),   0., 2.);
+    double hi = Map(texture.height, 0., StfWindowHeight(),  0., 2.);
+
+    Triangle t1, t2;
+    t1.p1 = (Vec3){rx,      ry,      -1.f};
+    t1.p2 = (Vec3){rx + wi, ry,      -1.f};
+    t1.p3 = (Vec3){rx + wi, ry + hi, -1.f};
+
+    t2.p1 = (Vec3){rx,      ry,      -1.f};
+    t2.p3 = (Vec3){rx + wi, ry + hi, -1.f};
+    t2.p2 = (Vec3){rx,      ry + hi, -1.f};
+    // clang-format on
+
+    TriangleArrayListAdd(&renderData.triangles, t1);
+    TriangleArrayListAdd(&renderData.triangles, t2);
+
+    ColourArrayListAdd(&renderData.colours, tint);
+    ColourArrayListAdd(&renderData.colours, tint);
 }
