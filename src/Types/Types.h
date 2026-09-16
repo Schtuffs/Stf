@@ -43,7 +43,7 @@ typedef struct Texture {
     u32 id;
     u64 width;
     u64 height;
-} Texture;
+} Texture, Texture2D;
 
 typedef struct Vec2 {
     float x, y;

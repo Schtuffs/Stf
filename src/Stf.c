@@ -27,7 +27,7 @@ typedef struct RenderData {
 static GLuint     shader     = 0;
 static GlobalData stfData    = {0};
 static RenderData renderData = {0};
-static Texture    whiteTexture;
+static Texture2D  whiteTexture;
 
 // ----- Helpers -----
 
@@ -197,7 +197,7 @@ bool StfWindowInit(i32 width, i32 height, const char* title)
 
     // OpenGL inits
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    glDepthFunc(GL_LEQUAL);
 
     // Shader init
     shader = CreateShader("../Stf/lib/default.vert", "../Stf/lib/default.frag");
@@ -293,15 +293,15 @@ void StfEndRender()
 {
     // Render them renderData.triangles
     for (u64 i = 0; i < renderData.triangles.count; i++) {
-        Triangle triangle = *(Triangle*)renderData.triangles.data[i];
-        Colour   colour   = *(Colour*)renderData.colours.data[i];
-        Texture  tex      = *(Texture*)renderData.textures.data[i];
+        Triangle  triangle = *(Triangle*)renderData.triangles.data[i];
+        Colour    colour   = *(Colour*)renderData.colours.data[i];
+        Texture2D tex      = *(Texture2D*)renderData.textures.data[i];
 
         // clang-format off
         float    vertices[] = {
-            triangle.p1.x, triangle.p1.y, triangle.p1.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 1.f, 1.f,
-            triangle.p2.x, triangle.p2.y, triangle.p2.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 1.f, 0.f,
-            triangle.p3.x, triangle.p3.y, triangle.p3.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 0.f, 0.f,
+            triangle.p1.x, triangle.p1.y, triangle.p1.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 0.f, 1.f,
+            triangle.p2.x, triangle.p2.y, triangle.p2.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 0.f, 0.f,
+            triangle.p3.x, triangle.p3.y, triangle.p3.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 1.f, 0.f,
         };
         // clang-format on
 
@@ -345,12 +345,12 @@ void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
 {
 
     // clang-format off
-    double rx1 = Map(p1.x, 0., StfWindowWidth(),  -1., 1.);
-    double ry1 = Map(p1.y, 0., StfWindowHeight(), -1., 1.);
-    double rx2 = Map(p2.x, 0., StfWindowWidth(),  -1., 1.);
-    double ry2 = Map(p2.y, 0., StfWindowHeight(), -1., 1.);
-    double rx3 = Map(p3.x, 0., StfWindowWidth(),  -1., 1.);
-    double ry3 = Map(p3.y, 0., StfWindowHeight(), -1., 1.);
+    double rx1 = Map(p1.x, 0., StfWindowWidth(),  -1.,  1.);
+    double ry1 = Map(p1.y, 0., StfWindowHeight(),  1., -1.);
+    double rx2 = Map(p2.x, 0., StfWindowWidth(),  -1.,  1.);
+    double ry2 = Map(p2.y, 0., StfWindowHeight(),  1., -1.);
+    double rx3 = Map(p3.x, 0., StfWindowWidth(),  -1.,  1.);
+    double ry3 = Map(p3.y, 0., StfWindowHeight(),  1., -1.);
     // clang-format on
 
     Triangle* t = malloc(sizeof(Triangle));
@@ -365,8 +365,8 @@ void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
 
     ArrayListAdd(&renderData.colours, c);
 
-    Texture* tex1 = malloc(sizeof(Texture));
-    *tex1         = whiteTexture;
+    Texture2D* tex1 = malloc(sizeof(Texture2D));
+    *tex1           = whiteTexture;
 
     ArrayListAdd(&renderData.textures, tex1);
 }
@@ -374,21 +374,21 @@ void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
 void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
 {
     // clang-format off
-    double rx = Map(x,      0., StfWindowWidth(),  -1., 1.);
-    double ry = Map(y,      0., StfWindowHeight(), -1., 1.);
-    double wi = Map(width,  0., StfWindowWidth(),   0., 2.);
-    double hi = Map(height, 0., StfWindowHeight(),  0., 2.);
+    double rx = Map(x,      0., StfWindowWidth(),  -1.,  1.);
+    double ry = Map(y,      0., StfWindowHeight(),  1., -1.);
+    double wi = Map(width,  0., StfWindowWidth(),   0.,  2.);
+    double hi = Map(height, 0., StfWindowHeight(),  0.,  2.);
 
     Triangle *t1 = malloc(sizeof(Triangle));
     Triangle *t2 = malloc(sizeof(Triangle));
 
-    t1->p1 = (Vec3){rx,      ry,      -1.f};
-    t1->p2 = (Vec3){rx + wi, ry,      -1.f};
-    t1->p3 = (Vec3){rx + wi, ry + hi, -1.f};
+    t1->p1 = (Vec3){rx,      ry,      0.f};
+    t1->p2 = (Vec3){rx + wi, ry,      0.f};
+    t1->p3 = (Vec3){rx + wi, ry - hi, 0.f};
 
-    t2->p1 = (Vec3){rx,      ry,      -1.f};
-    t2->p3 = (Vec3){rx + wi, ry + hi, -1.f};
-    t2->p2 = (Vec3){rx,      ry + hi, -1.f};
+    t2->p1 = (Vec3){rx,      ry,      0.f};
+    t2->p3 = (Vec3){rx + wi, ry - hi, 0.f};
+    t2->p2 = (Vec3){rx,      ry - hi, 0.f};
     // clang-format on
 
     ArrayListAdd(&renderData.triangles, t1);
@@ -402,33 +402,33 @@ void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
     ArrayListAdd(&renderData.colours, c1);
     ArrayListAdd(&renderData.colours, c2);
 
-    Texture* tex1 = malloc(sizeof(Texture));
-    *tex1         = whiteTexture;
-    Texture* tex2 = malloc(sizeof(Texture));
-    *tex2         = whiteTexture;
+    Texture2D* tex1 = malloc(sizeof(Texture2D));
+    *tex1           = whiteTexture;
+    Texture2D* tex2 = malloc(sizeof(Texture2D));
+    *tex2           = whiteTexture;
 
     ArrayListAdd(&renderData.textures, tex1);
     ArrayListAdd(&renderData.textures, tex2);
 }
 
-void StfRenderTexture(Texture texture, i64 x, i64 y, Colour tint)
+void StfRenderTexture(Texture2D texture, i64 x, i64 y, Colour tint)
 {
     // clang-format off
-    double rx = Map(x,              0., StfWindowWidth(),  -1., 1.);
-    double ry = Map(y,              0., StfWindowHeight(), -1., 1.);
-    double wi = Map(texture.width,  0., StfWindowWidth(),   0., 2.);
-    double hi = Map(texture.height, 0., StfWindowHeight(),  0., 2.);
+    double rx = Map(x,              0., StfWindowWidth(),  -1.,  1.);
+    double ry = Map(y,              0., StfWindowHeight(),  1., -1.);
+    double wi = Map(texture.width,  0., StfWindowWidth(),   0.,  2.);
+    double hi = Map(texture.height, 0., StfWindowHeight(),  0.,  2.);
 
     Triangle *t1 = malloc(sizeof(Triangle));
     Triangle *t2 = malloc(sizeof(Triangle));
 
     t1->p1 = (Vec3){rx,      ry,      0.f};
     t1->p2 = (Vec3){rx + wi, ry,      0.f};
-    t1->p3 = (Vec3){rx + wi, ry + hi, 0.f};
+    t1->p3 = (Vec3){rx + wi, ry - hi, 0.f};
 
     t2->p1 = (Vec3){rx,      ry,      0.f};
-    t2->p3 = (Vec3){rx + wi, ry + hi, 0.f};
-    t2->p2 = (Vec3){rx,      ry + hi, 0.f};
+    t2->p3 = (Vec3){rx + wi, ry - hi, 0.f};
+    t2->p2 = (Vec3){rx,      ry - hi, 0.f};
     // clang-format on
 
     ArrayListAdd(&renderData.triangles, t1);
@@ -442,10 +442,10 @@ void StfRenderTexture(Texture texture, i64 x, i64 y, Colour tint)
     ArrayListAdd(&renderData.colours, c1);
     ArrayListAdd(&renderData.colours, c2);
 
-    Texture* tex1 = malloc(sizeof(Texture));
-    *tex1         = texture;
-    Texture* tex2 = malloc(sizeof(Texture));
-    *tex2         = texture;
+    Texture2D* tex1 = malloc(sizeof(Texture2D));
+    *tex1           = texture;
+    Texture2D* tex2 = malloc(sizeof(Texture2D));
+    *tex2           = texture;
 
     ArrayListAdd(&renderData.textures, tex1);
     ArrayListAdd(&renderData.textures, tex2);

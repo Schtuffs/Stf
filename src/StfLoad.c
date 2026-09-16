@@ -18,6 +18,7 @@ Image StfLoadImage(const char* filename)
 
     Image image = {0};
     int   width, height, channels = 4;
+    stbi_set_flip_vertically_on_load(true);
     image.data = stbi_load(filename, &width, &height, &channels, channels);
     if (!image.data) {
         return (Image){0};
@@ -29,9 +30,9 @@ Image StfLoadImage(const char* filename)
     return image;
 }
 
-Texture StfLoadTexture(Image image)
+Texture2D StfLoadTexture(Image image)
 {
-    Texture tex = {0};
+    Texture2D tex = {0};
     if (!StfIsValidImage(image)) {
         return tex;
     }
@@ -57,10 +58,10 @@ Texture StfLoadTexture(Image image)
 
 bool StfIsValidImage(Image image) { return (image.data && image.width > 0 && image.height > 0); }
 
-bool StfIsValidTexture(Texture tex) { return (tex.id && tex.width > 0 && tex.height > 0); }
+bool StfIsValidTexture(Texture2D tex) { return (tex.id && tex.width > 0 && tex.height > 0); }
 
 // ----- Update -----
 
 void StfUnloadImage(Image image) { free(image.data); }
 
-void StfUnloadTexture(Texture tex) { glDeleteTextures(1, &tex.id); }
+void StfUnloadTexture(Texture2D tex) { glDeleteTextures(1, &tex.id); }
