@@ -21,8 +21,8 @@ void main() {
     gl_Position = vec4(aPos, 1.0);
 
     // Assigns the colors from the Vertex Data to "color"
-    fragColour = aColor;
+    fragColour = vec4(0.5f, 0.5f, 0.5f, 1.f);
 
     // Assigns the texture coordinates from the Vertex Data to "texCoord"
-    texCoord = aTex;
+    //texCoord = aTex;
 }

@@ -30,6 +30,8 @@ i32 StfWindowWidth();
 i32 StfWindowHeight();
 // Checks if the window should close or not.
 bool StfWindowShouldClose();
+// Gets the current mouse position.
+Vec2 StfMousePos();
 
 // ----- Update -----
 

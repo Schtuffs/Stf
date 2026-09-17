@@ -35,14 +35,14 @@ constexpr Colour MAGENTA = {255,   0, 255, 255};
 
 typedef struct Image {
     void* data;
-    u64   width;
-    u64   height;
+    i32   width;
+    i32   height;
 } Image;
 
 typedef struct Texture {
     u32 id;
-    u64 width;
-    u64 height;
+    i32 width;
+    i32 height;
 } Texture, Texture2D;
 
 typedef struct Vec2 {
@@ -57,12 +57,10 @@ typedef struct Vec4 {
     float x, y, z, w;
 } Vec4;
 
-typedef struct Mesh {
-    int  vertCount;
-    int* verts;
-    int  vbo;
-} Mesh;
-
 typedef struct Triangle {
     Vec3 p1, p2, p3;
 } Triangle;
+
+typedef struct Rectangle {
+    float x, y, width, height;
+} Rectangle;
