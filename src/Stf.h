@@ -19,8 +19,6 @@ extern "C" {
 bool StfWindowInit(i32 width, i32 height, const char* title);
 // Frees memory created by library.
 bool StfWindowClose();
-// Sets the window background
-void StfBackground(Colour colour);
 
 // ----- Read -----
 
@@ -41,6 +39,8 @@ double StfGetTime();
 void StfBeginRender();
 // Renders the next frame.
 void StfEndRender();
+// Sets the window background
+void StfClearBackground(Colour colour);
 
 // Add triangle to the render pipeline.
 void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour);

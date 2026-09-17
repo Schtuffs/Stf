@@ -377,7 +377,11 @@ bool StfWindowClose()
     return true;
 }
 
-void StfBackground(Colour c) { glClearColor(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f); }
+void StfClearBackground(Colour c)
+{
+    glClearColor(c.r / 255.f, c.g / 255.f, c.b / 255.f, c.a / 255.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
 
 // ----- Read -----
 
@@ -404,11 +408,7 @@ static void ResetBuffers()
     renderer.renderBuffer->count = 0;
 }
 
-void StfBeginRender()
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    ResetBuffers();
-}
+void StfBeginRender() { ResetBuffers(); }
 
 static void RenderBuffers()
 {
