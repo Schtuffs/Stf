@@ -32,6 +32,8 @@ i32 StfWindowHeight();
 bool StfWindowShouldClose();
 // Gets the current mouse position.
 Vec2 StfMousePos();
+// Gets time since initialization.
+double StfGetTime();
 
 // ----- Update -----
 

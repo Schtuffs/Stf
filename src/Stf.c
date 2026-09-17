@@ -11,6 +11,11 @@
 #include "Types/ArrayList.h"
 #include "Utils/Utils.h"
 
+#define STF_ALLOC(size) malloc(size)
+#define STF_FREE(ptr)                                                                              \
+    free(*ptr);                                                                                    \
+    *ptr = NULL
+
 #if !defined(STF_VERTEX_BUFFER_MAX_SIZE)
 #define STF_VERTEX_BUFFER_MAX_SIZE 8192
 #endif
@@ -92,7 +97,7 @@ bool FileRead(const char* filename, char** out, int* size)
 
     // Reallocate
     if (*out) {
-        free(*out);
+        STF_FREE(&*out);
     }
     *size = ftell(file);
     rewind(file);
@@ -179,6 +184,73 @@ GLuint CreateShader(const char* vertexFile, const char* fragmentFile)
     return shader;
 }
 
+bool InitVertexBuffer(VertexBuffer* vb)
+{
+    // Buffer inits
+    glGenVertexArrays(1, &vb->vao);
+    u32 vertexVboCount = sizeof(vb->vbo) / sizeof(vb->vbo[0]);
+    glGenBuffers(vertexVboCount, vb->vbo);
+    glBindVertexArray(vb->vao);
+
+    // Vertexes (4 vertexes * 3 points per vertex)
+    // layout-location 0
+    glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[0]);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(0));
+    glEnableVertexAttribArray(0);
+
+    // Colours (4 channels * 4 vertexes)
+    // layout-location 1
+    glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[1]);
+    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, 4 * sizeof(u8), (void*)0);
+    glEnableVertexAttribArray(1);
+
+    // Texture coords (2 coords * 4 points)
+    // layout-location 2
+    glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[2]);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2);
+
+    glBindVertexArray(0);
+
+    // Inits for arrays
+    vb->vertices  = NULL;
+    vb->colours   = NULL;
+    vb->texCoords = NULL;
+    vb->indices   = NULL;
+
+    vb->vertices = STF_ALLOC(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 12);
+    if (!vb->vertices) {
+        perror("ERROR: Could not allocate vertices.");
+        return false;
+    }
+
+    vb->colours = STF_ALLOC(sizeof(u8) * STF_VERTEX_BUFFER_MAX_SIZE * 16);
+    if (!vb->colours) {
+        perror("ERROR: Could not allocate colours.");
+        STF_FREE(&vb->vertices);
+        return false;
+    }
+
+    vb->texCoords = STF_ALLOC(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 8);
+    if (!vb->texCoords) {
+        perror("ERROR: Could not allocate texture coordinates.");
+        STF_FREE(&vb->vertices);
+        STF_FREE(&vb->colours);
+        return false;
+    }
+
+    vb->indices = STF_ALLOC(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 6);
+    if (!vb->indices) {
+        perror("ERROR: Could not allocate indices.");
+        STF_FREE(&vb->vertices);
+        STF_FREE(&vb->colours);
+        STF_FREE(&vb->texCoords);
+        return false;
+    }
+
+    return true;
+}
+
 // ----- Creation / Destruction
 
 bool StfWindowInit(i32 width, i32 height, const char* title)
@@ -225,7 +297,7 @@ bool StfWindowInit(i32 width, i32 height, const char* title)
 
     // Prepare vertex buffer
     renderer.vertexSize   = 1;
-    renderer.vertexBuffer = malloc(sizeof(VertexBuffer) * renderer.vertexSize);
+    renderer.vertexBuffer = STF_ALLOC(sizeof(VertexBuffer) * renderer.vertexSize);
     if (!renderer.vertexBuffer) {
         perror("ERROR: Failure to initialize vertex buffer.");
         StfWindowClose();
@@ -233,25 +305,13 @@ bool StfWindowInit(i32 width, i32 height, const char* title)
     }
 
     // OpenGL inits
-    glGenVertexArrays(1, &renderer.vertexBuffer[0].vao);
-    u32 vertexVboCount =
-        sizeof(renderer.vertexBuffer[0].vbo) / sizeof(renderer.vertexBuffer[0].vbo[0]);
-    glGenBuffers(vertexVboCount, renderer.vertexBuffer[0].vbo);
-    glBindVertexArray(renderer.vertexBuffer[0].vao);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-    glBindVertexArray(0);
+    InitVertexBuffer(&renderer.vertexBuffer[0]);
 
     // Buffer inits
-    renderer.vertexBuffer->vertices  = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 12);
-    renderer.vertexBuffer->colours   = malloc(sizeof(u8) * STF_VERTEX_BUFFER_MAX_SIZE * 16);
-    renderer.vertexBuffer->texCoords = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 8);
-    renderer.vertexBuffer->indices   = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 6);
 
     // Prepare render buffer
     renderer.renderSize   = 1;
-    renderer.renderBuffer = malloc(sizeof(RenderBuffer) * renderer.renderSize);
+    renderer.renderBuffer = STF_ALLOC(sizeof(RenderBuffer) * renderer.renderSize);
     if (!renderer.renderBuffer) {
         perror("ERROR: Failure to initialize render buffer.");
         StfWindowClose();
@@ -259,8 +319,8 @@ bool StfWindowInit(i32 width, i32 height, const char* title)
     }
 
     // Buffer inits
-    renderer.renderBuffer->shader  = malloc(sizeof(u32) * STF_VERTEX_BUFFER_MAX_SIZE);
-    renderer.renderBuffer->texture = malloc(sizeof(Texture2D) * STF_VERTEX_BUFFER_MAX_SIZE);
+    renderer.renderBuffer->shader  = STF_ALLOC(sizeof(u32) * STF_VERTEX_BUFFER_MAX_SIZE);
+    renderer.renderBuffer->texture = STF_ALLOC(sizeof(Texture2D) * STF_VERTEX_BUFFER_MAX_SIZE);
 
     // Shader init
     u32 shader = CreateShader("../Stf/lib/default.vert", "../Stf/lib/default.frag");
@@ -334,16 +394,23 @@ Vec2 StfMousePos()
     return (Vec2){x, y};
 }
 
+double StfGetTime() { return glfwGetTime(); }
+
 // ----- Update -----
 
-void StfBeginRender()
+static void ResetBuffers()
 {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     renderer.vertexBuffer->count = 0;
     renderer.renderBuffer->count = 0;
 }
 
-void StfEndRender()
+void StfBeginRender()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    ResetBuffers();
+}
+
+static void RenderBuffers()
 {
     // Rendering to screen - loop through each buffer
     for (u64 vertBuf = 0; vertBuf < (u64)renderer.vertexSize; vertBuf++) {
@@ -353,16 +420,13 @@ void StfEndRender()
         glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[0]);
         glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vb->count * 12, vb->vertices,
                      GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(0));
 
         glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[1]);
         glBufferData(GL_ARRAY_BUFFER, sizeof(u8) * vb->count * 16, vb->colours, GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, 4 * sizeof(u8), (void*)0);
 
         glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[2]);
         glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vb->count * 8, vb->texCoords,
                      GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vb->vbo[3]);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(i32) * vb->count * 6, vb->indices,
@@ -371,7 +435,13 @@ void StfEndRender()
         glUseProgram(renderer.renderBuffer->shader[vertBuf]);
         glBindTexture(GL_TEXTURE_2D, renderer.renderBuffer->texture[vertBuf].id);
         glDrawElements(GL_TRIANGLES, vb->count * 6, GL_UNSIGNED_INT, (void*)0);
+        glBindVertexArray(0);
     }
+}
+
+void StfEndRender()
+{
+    RenderBuffers();
 
     // End of pipeline
     glfwSwapBuffers(stfData.window);
@@ -443,22 +513,36 @@ static void AddTexture2D(VertexBuffer* vb, Texture2D tex)
 {
     u64 idx = vb->count * 8;
 
-    vb->texCoords[idx + 0] = 0.f;
-    vb->texCoords[idx + 1] = 0.f;
+    if (tex.id == whiteTexture.id) {
+        vb->texCoords[idx + 0] = 0.5f;
+        vb->texCoords[idx + 1] = 0.5f;
 
-    vb->texCoords[idx + 2] = 0.f;
-    vb->texCoords[idx + 3] = 1.f;
+        vb->texCoords[idx + 2] = 0.5f;
+        vb->texCoords[idx + 3] = 0.5f;
 
-    vb->texCoords[idx + 4] = 1.f;
-    vb->texCoords[idx + 5] = 1.f;
+        vb->texCoords[idx + 4] = 0.5f;
+        vb->texCoords[idx + 5] = 0.5f;
 
-    vb->texCoords[idx + 6] = 1.f;
-    vb->texCoords[idx + 7] = 0.f;
+        vb->texCoords[idx + 6] = 0.5f;
+        vb->texCoords[idx + 7] = 0.5f;
+    } else {
+        vb->texCoords[idx + 0] = 0.f;
+        vb->texCoords[idx + 1] = 0.f;
 
-    renderer.renderBuffer->texture[renderer.renderBuffer->count] = tex;
+        vb->texCoords[idx + 2] = 0.f;
+        vb->texCoords[idx + 3] = 1.f;
+
+        vb->texCoords[idx + 4] = 1.f;
+        vb->texCoords[idx + 5] = 1.f;
+
+        vb->texCoords[idx + 6] = 1.f;
+        vb->texCoords[idx + 7] = 0.f;
+    }
+
+    renderer.renderBuffer->texture[renderer.renderBuffer->count++] = tex;
 }
 
-static void AddShape(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4, Colour colour, Texture2D tex)
+static void AddShape2D(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4, Colour colour, Texture2D tex)
 {
     VertexBuffer* vb = &renderer.vertexBuffer[renderer.vertexSize - 1];
 
@@ -489,13 +573,13 @@ void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
 
     v2.x = rx2;
     v2.y = ry2;
-    v1.z = 0.f;
+    v2.z = 0.f;
 
     v3.x = rx3;
     v3.y = ry3;
-    v1.z = 0.f;
+    v3.z = 0.f;
 
-    AddShape(v1, v2, v1, v3, colour, whiteTexture);
+    AddShape2D(v1, v2, v1, v3, colour, whiteTexture);
 }
 
 void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
@@ -525,11 +609,15 @@ void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
     v4.y = ry;
     v4.z = 0.;
 
-    AddShape(v1, v2, v3, v4, colour, whiteTexture);
+    AddShape2D(v1, v2, v3, v4, colour, whiteTexture);
 }
 
 void StfRenderTexture(Texture2D texture, i64 x, i64 y, Colour tint)
 {
+    // Not great, but it works
+    RenderBuffers();
+    ResetBuffers();
+
     // clang-format off
     double rx = Map(x,              0., StfWindowWidth(),  -1.,  1.);
     double ry = Map(y,              0., StfWindowHeight(),  1., -1.);
@@ -555,5 +643,7 @@ void StfRenderTexture(Texture2D texture, i64 x, i64 y, Colour tint)
     v4.y = ry;
     v4.z = 0.;
 
-    AddShape(v1, v2, v3, v4, tint, texture);
+    AddShape2D(v1, v2, v3, v4, tint, texture);
+    RenderBuffers();
+    ResetBuffers();
 }
