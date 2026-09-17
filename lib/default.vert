@@ -3,7 +3,7 @@
 // Positions/Coordinates
 layout (location = 0) in vec3 aPos;
 // Colors
-layout (location = 1) in vec4 aColor;
+layout (location = 1) in vec4 aColour;
 // Texture Coordinates
 layout (location = 2) in vec2 aTex;
 
@@ -21,8 +21,8 @@ void main() {
     gl_Position = vec4(aPos, 1.0);
 
     // Assigns the colors from the Vertex Data to "color"
-    fragColour = vec4(0.5f, 0.5f, 0.5f, 1.f);
+    fragColour = aColour;
 
     // Assigns the texture coordinates from the Vertex Data to "texCoord"
-    //texCoord = aTex;
+    texCoord = aTex;
 }

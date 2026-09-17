@@ -220,6 +220,9 @@ bool StfWindowInit(i32 width, i32 height, const char* title)
         return false;
     }
 
+    glEnable(GL_DEPTH_FUNC);
+    glDepthFunc(GL_LEQUAL);
+
     // Prepare vertex buffer
     renderer.vertexSize   = 1;
     renderer.vertexBuffer = malloc(sizeof(VertexBuffer) * renderer.vertexSize);
@@ -230,19 +233,21 @@ bool StfWindowInit(i32 width, i32 height, const char* title)
     }
 
     // OpenGL inits
-    glGenVertexArrays(1, &renderer.vertexBuffer->vao);
-    u32 vertexVboCount = sizeof(renderer.vertexBuffer->vbo) / sizeof(renderer.vertexBuffer->vbo[0]);
-    glGenBuffers(vertexVboCount, renderer.vertexBuffer->vbo);
-    glBindVertexArray(renderer.vertexBuffer->vao);
+    glGenVertexArrays(1, &renderer.vertexBuffer[0].vao);
+    u32 vertexVboCount =
+        sizeof(renderer.vertexBuffer[0].vbo) / sizeof(renderer.vertexBuffer[0].vbo[0]);
+    glGenBuffers(vertexVboCount, renderer.vertexBuffer[0].vbo);
+    glBindVertexArray(renderer.vertexBuffer[0].vao);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
+    glBindVertexArray(0);
 
     // Buffer inits
-    renderer.vertexBuffer->vertices = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 12);
-    // renderer.vertexBuffer->colours   = malloc(sizeof(u8) * STF_VERTEX_BUFFER_MAX_SIZE * 16);
-    // renderer.vertexBuffer->texCoords = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 8);
-    renderer.vertexBuffer->indices = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 6);
+    renderer.vertexBuffer->vertices  = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 12);
+    renderer.vertexBuffer->colours   = malloc(sizeof(u8) * STF_VERTEX_BUFFER_MAX_SIZE * 16);
+    renderer.vertexBuffer->texCoords = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 8);
+    renderer.vertexBuffer->indices   = malloc(sizeof(float) * STF_VERTEX_BUFFER_MAX_SIZE * 6);
 
     // Prepare render buffer
     renderer.renderSize   = 1;
@@ -346,55 +351,27 @@ void StfEndRender()
         glBindVertexArray(vb->vao);
 
         glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[0]);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vb->count * 12, vb->vertices, GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vb->count * 12, vb->vertices,
+                     GL_DYNAMIC_DRAW);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(0));
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vb->vbo[1]);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u32) * vb->count * 6, vb->indices,
-                     GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[1]);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(u8) * vb->count * 16, vb->colours, GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, 4 * sizeof(u8), (void*)0);
 
-        // glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[2]);
+        glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[2]);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vb->count * 8, vb->texCoords,
+                     GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 
-        // glBindBuffer(GL_ARRAY_BUFFER, vb->vbo[3]);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vb->vbo[3]);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(i32) * vb->count * 6, vb->indices,
+                     GL_DYNAMIC_DRAW);
+
         glUseProgram(renderer.renderBuffer->shader[vertBuf]);
-        glDrawElements(GL_TRIANGLES, vb->count * 6, GL_UNSIGNED_INT, 0);
+        glBindTexture(GL_TEXTURE_2D, renderer.renderBuffer->texture[vertBuf].id);
+        glDrawElements(GL_TRIANGLES, vb->count * 6, GL_UNSIGNED_INT, (void*)0);
     }
-    // for (u64 i = 0; i < renderer.count; i++) {
-    //     Rectangle rect = renderer.rectangles
-    //                      // clang-format off
-    //     float    vertices[] = {
-    //         triangle.p1.x, triangle.p1.y, triangle.p1.z, colour.r / 255.f, colour.g / 255.f,
-    //         colour.b / 255.f, colour.a / 255.f, 0.f, 1.f, triangle.p2.x, triangle.p2.y,
-    //         triangle.p2.z, colour.r / 255.f, colour.g / 255.f, colour.b / 255.f, colour.a /
-    //         255.f, 0.f, 0.f, triangle.p3.x, triangle.p3.y, triangle.p3.z, colour.r / 255.f,
-    //         colour.g / 255.f, colour.b / 255.f, colour.a / 255.f, 1.f, 0.f,
-    //     };
-    //     // clang-format on
-
-    //     u32 VBO;
-    //     glGenBuffers(1, &VBO);
-
-    //     glBindVertexArray(renderBuffer.vao);
-    //     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-    //     glEnableVertexAttribArray(0);
-
-    //     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 9 * sizeof(float),
-    //                           (void*)(3 * sizeof(float)));
-    //     glEnableVertexAttribArray(1);
-
-    //     glBindTexture(GL_TEXTURE_2D, tex.id);
-    //     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float),
-    //                           (void*)(7 * sizeof(float)));
-    //     glEnableVertexAttribArray(2);
-
-    //     glUseProgram(shader);
-    //     glDrawArrays(GL_TRIANGLES, 0, 3);
-
-    //     glBindVertexArray(0);
-    //     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    //     glDeleteBuffers(1, &VBO);
-    // }
 
     // End of pipeline
     glfwSwapBuffers(stfData.window);
@@ -403,10 +380,9 @@ void StfEndRender()
 
 //
 
-static void AddVertexes(Vec3 p1, Vec3 p2, Vec3 p3, Vec3 p4)
+static void AddVertexes(VertexBuffer* vb, Vec3 p1, Vec3 p2, Vec3 p3, Vec3 p4)
 {
-    VertexBuffer* vb  = &renderer.vertexBuffer[renderer.vertexSize - 1];
-    u64           idx = vb->count * 12;
+    u64 idx = vb->count * 12;
 
     vb->vertices[idx + 0] = p1.x;
     vb->vertices[idx + 1] = p1.y;
@@ -425,24 +401,22 @@ static void AddVertexes(Vec3 p1, Vec3 p2, Vec3 p3, Vec3 p4)
     vb->vertices[idx + 11] = p4.z;
 }
 
-static void AddIndices(u32 p1, u32 p2, u32 p3, u32 p4, u32 p5, u32 p6)
+static void AddIndices(VertexBuffer* vb)
 {
-    VertexBuffer* vb  = &renderer.vertexBuffer[renderer.vertexSize - 1];
-    u64           idx = vb->count * 6;
+    u64 idx = vb->count * 6;
+    u64 off = vb->count * 4;
 
-    vb->indices[idx + 0] = p1;
-    vb->indices[idx + 1] = p2;
-    vb->indices[idx + 2] = p3;
-    vb->indices[idx + 3] = p4;
-    vb->indices[idx + 4] = p5;
-    vb->indices[idx + 5] = p6;
+    vb->indices[idx + 0] = 0 + off;
+    vb->indices[idx + 1] = 1 + off;
+    vb->indices[idx + 2] = 3 + off;
+    vb->indices[idx + 3] = 1 + off;
+    vb->indices[idx + 4] = 2 + off;
+    vb->indices[idx + 5] = 3 + off;
 }
 
-static void AddColour(Colour colour)
+static void AddColour(VertexBuffer* vb, Colour colour)
 {
-    return;
-    VertexBuffer* vb  = &renderer.vertexBuffer[renderer.vertexSize - 1];
-    u64           idx = vb->count * 16;
+    u64 idx = vb->count * 16;
 
     vb->colours[idx + 0] = colour.r;
     vb->colours[idx + 1] = colour.g;
@@ -465,11 +439,9 @@ static void AddColour(Colour colour)
     vb->colours[idx + 15] = colour.a;
 }
 
-static void AddTexture2D(Texture2D tex)
+static void AddTexture2D(VertexBuffer* vb, Texture2D tex)
 {
-    return;
-    VertexBuffer* vb  = &renderer.vertexBuffer[renderer.vertexSize - 1];
-    u64           idx = vb->count * 8;
+    u64 idx = vb->count * 8;
 
     vb->texCoords[idx + 0] = 0.f;
     vb->texCoords[idx + 1] = 0.f;
@@ -483,22 +455,23 @@ static void AddTexture2D(Texture2D tex)
     vb->texCoords[idx + 6] = 1.f;
     vb->texCoords[idx + 7] = 0.f;
 
-    renderer.renderBuffer->texture[renderer.renderBuffer->count++] = tex;
+    renderer.renderBuffer->texture[renderer.renderBuffer->count] = tex;
 }
 
 static void AddShape(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4, Colour colour, Texture2D tex)
 {
-    AddVertexes(v1, v2, v3, v4);
-    AddIndices(0, 1, 3, 1, 2, 3);
-    AddColour(colour);
-    AddTexture2D(tex);
+    VertexBuffer* vb = &renderer.vertexBuffer[renderer.vertexSize - 1];
 
-    renderer.vertexBuffer[renderer.vertexSize - 1].count++;
+    AddVertexes(vb, v1, v2, v3, v4);
+    AddIndices(vb);
+    AddColour(vb, colour);
+    AddTexture2D(vb, tex);
+
+    vb->count++;
 }
 
 void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
 {
-    (void)colour;
     // clang-format off
     double rx1 = Map(p1.x, 0., StfWindowWidth(),  -1.,  1.);
     double ry1 = Map(p1.y, 0., StfWindowHeight(),  1., -1.);
@@ -508,10 +481,21 @@ void StfRenderTriangle(Vec2 p1, Vec2 p2, Vec2 p3, Colour colour)
     double ry3 = Map(p3.y, 0., StfWindowHeight(),  1., -1.);
     // clang-format on
 
-    Triangle* t = malloc(sizeof(Triangle));
-    t->p1       = (Vec3){rx1, ry1, 0.};
-    t->p2       = (Vec3){rx2, ry2, 0.};
-    t->p3       = (Vec3){rx3, ry3, 0.};
+    Vec3 v1, v2, v3;
+
+    v1.x = rx1;
+    v1.y = ry1;
+    v1.z = 0.f;
+
+    v2.x = rx2;
+    v2.y = ry2;
+    v1.z = 0.f;
+
+    v3.x = rx3;
+    v3.y = ry3;
+    v1.z = 0.f;
+
+    AddShape(v1, v2, v1, v3, colour, whiteTexture);
 }
 
 void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
@@ -543,7 +527,7 @@ void StfRenderRect(i64 x, i64 y, i64 width, i64 height, Colour colour)
 
     AddShape(v1, v2, v3, v4, colour, whiteTexture);
 }
-/*
+
 void StfRenderTexture(Texture2D texture, i64 x, i64 y, Colour tint)
 {
     // clang-format off
@@ -551,39 +535,25 @@ void StfRenderTexture(Texture2D texture, i64 x, i64 y, Colour tint)
     double ry = Map(y,              0., StfWindowHeight(),  1., -1.);
     double wi = Map(texture.width,  0., StfWindowWidth(),   0.,  2.);
     double hi = Map(texture.height, 0., StfWindowHeight(),  0.,  2.);
-
-    Triangle *t1 = malloc(sizeof(Triangle));
-    Triangle *t2 = malloc(sizeof(Triangle));
-
-    t1->p1 = (Vec3){rx,      ry,      0.f};
-    t1->p2 = (Vec3){rx + wi, ry,      0.f};
-    t1->p3 = (Vec3){rx + wi, ry - hi, 0.f};
-
-    t2->p1 = (Vec3){rx,      ry,      0.f};
-    t2->p3 = (Vec3){rx + wi, ry - hi, 0.f};
-    t2->p2 = (Vec3){rx,      ry - hi, 0.f};
     // clang-format on
 
-    u64 size = renderer.vertexBuffer->count * 3;
-    renderer.vertexBuffer->vertices[size];
+    Vec3 v1, v2, v3, v4;
 
-    ArrayListAdd(&renderBuffer.triangles, t1);
-    ArrayListAdd(&renderBuffer.triangles, t2);
+    v1.x = rx;
+    v1.y = ry;
+    v1.z = 0.;
 
-    Colour* c1 = malloc(sizeof(Colour));
-    *c1        = tint;
-    Colour* c2 = malloc(sizeof(Colour));
-    *c2        = tint;
+    v2.x = rx;
+    v2.y = ry - hi;
+    v2.z = 0.;
 
-    ArrayListAdd(&renderBuffer.colours, c1);
-    ArrayListAdd(&renderBuffer.colours, c2);
+    v3.x = rx + wi;
+    v3.y = ry - hi;
+    v3.z = 0.;
 
-    Texture2D* tex1 = malloc(sizeof(Texture2D));
-    *tex1           = texture;
-    Texture2D* tex2 = malloc(sizeof(Texture2D));
-    *tex2           = texture;
+    v4.x = rx + wi;
+    v4.y = ry;
+    v4.z = 0.;
 
-    ArrayListAdd(&renderBuffer.textures, tex1);
-    ArrayListAdd(&renderBuffer.textures, tex2);
+    AddShape(v1, v2, v3, v4, tint, texture);
 }
-*/

@@ -18,7 +18,6 @@ Image StfLoadImage(const char* filename)
 
     Image image = {0};
     int   width, height, channels = 4;
-    stbi_set_flip_vertically_on_load(true);
     image.data = stbi_load(filename, &width, &height, &channels, channels);
     if (!image.data) {
         return (Image){0};
